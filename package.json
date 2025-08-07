@@ -19,6 +19,7 @@
   "devDependencies": {
     "@remotion/eslint-config-flat": "4.0.332",
     "@remotion/eslint-plugin": "4.0.332",
+    "@types/body-parser": "^1.19.6",
     "@types/express": "5.0.1",
     "@types/react": "19.0.0",
     "@types/web": "0.0.166",
