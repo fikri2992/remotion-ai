@@ -10,11 +10,14 @@
     "@remotion/cli": "4.0.332",
     "@remotion/renderer": "4.0.332",
     "@remotion/zod-types": "4.0.332",
-    "express": "5.1.0",
+    "@mastra/core": "latest",
+    "@mastra/mcp": "latest",
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "zod": "^3.25.67",
+    "zod-to-json-schema": "^3.24.5",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "remotion": "4.0.332",
-    "zod": "3.22.3"
+    "remotion": "4.0.332"
   },
   "devDependencies": {
     "@remotion/eslint-config-flat": "4.0.332",
@@ -34,6 +37,8 @@
     "start": "tsx server",
     "lint": "eslint . && tsc",
     "remotion:upgrade": "remotion upgrade",
-    "remotion:studio": "remotion studio"
+    "remotion:studio": "remotion studio",
+    "mcp:server": "node mcp-server-simple.js",
+    "mcp:demo": "node mcp-server-simple.js"
   }
 }
