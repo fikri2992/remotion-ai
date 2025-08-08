@@ -84,24 +84,24 @@ Note that for some entities a company license is needed. [Read the terms here](h
 
 ---
 
-# Remotion AI: Remotion + Mastra MCP (Updated README)
+# Remotion AI: Remotion + Mastra Agent (Updated README)
 
-This project augments a Remotion render server with an MCP (Model Context Protocol) server so AI agents and MCP clients can create and monitor video renders via stdio tools in addition to the traditional HTTP API.
+This project augments a Remotion render server with a Mastra Agent that controls rendering via stdio tools. The agent can create and monitor video renders in addition to the traditional HTTP API.
 
 Highlights:
 - __HTTP server__ in `server/index.ts` for REST-style control of render jobs.
-- __MCP server__ in `src/mastra/tools/remotion-server.ts` exposing tools: `createRenderJob`, `getRenderStatus`, `cancelRenderJob`.
+- __Tool server__ in `src/mastra/tools/remotion-server.ts` exposing tools: `createRenderJob`, `getRenderStatus`, `cancelRenderJob`.
 - __Render queue__ in `server/render-queue.ts` with job states, progress, and cancellation.
-- __Agent demo__ in `src/mastra/agents/simple-agent.js` using the MCP tools.
+- __Agent demo__ in `src/mastra/agents/simple-agent.js` using the stdio tools.
 - __Workflow utilities__ in `src/mastra/workflows/remotion/` for batching, reviewing, and monitoring renders.
 
 ## Project Structure
 
 - `server/index.ts` — Express server: create, query, cancel jobs; serves `renders/`.
 - `server/render-queue.ts` — Job queue; uses Remotion renderer; cancel/progress support.
-- `src/mastra/tools/remotion-server.ts` — MCP server over stdio with 3 tools.
-- `mcp-server-simple.js` — Node launcher that runs the TypeScript MCP server via `tsx`.
-- `demo-mcp.js` — Minimal MCP client demo that spawns the MCP server and calls tools.
+- `src/mastra/tools/remotion-server.ts` — Remotion tool server over stdio with 3 tools.
+- Tool server (direct run) — Use `npx tsx src/mastra/tools/remotion-server.ts` if you need to run it standalone.
+- Legacy demo (optional): `demo-mcp.js` (JSON-RPC client), not required for agent usage.
 - `src/mastra/agents/simple-agent.js` — Simple agent that lists tools and creates a job.
 - `src/mastra/workflows/remotion/` — `core.ts`, `factories.ts`, `schemas.ts`, `static.ts` for workflows and steps.
 - `renders/` — Output videos; also hosted by the Express server under `/renders`.
@@ -154,52 +154,34 @@ Endpoints (see `server/index.ts`):
 
 The server hosts finished videos at `/renders/<jobId>.mp4` from the `renders/` folder.
 
-## Run: MCP Server (stdio tools)
+## Run: Agent (stdio tools)
 
-Start MCP server:
-
-```bash
-npm run mcp:server
-```
-
-This launches `mcp-server-simple.js`, which runs `src/mastra/tools/remotion-server.ts` via `tsx` and exposes tools compatible with MCP clients and agents.
-
-Quick demo client:
+Run the agent:
 
 ```bash
-node demo-mcp.js
+node src/mastra/agents/simple-agent.js
 ```
 
-Example JSON-RPC requests sent over stdio:
+Or via npm script:
 
-```json
-// List tools
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/list",
-  "params": {}
-}
+```bash
+npm run agent:demo
 ```
 
-```json
-// Create a render job
-{
-  "jsonrpc": "2.0",
-  "id": 2,
-  "method": "tools/call",
-  "params": {
-    "name": "createRenderJob",
-    "arguments": { "titleText": "Hello from MCP!" }
-  }
-}
+The agent starts the stdio tool server from `src/mastra/tools/remotion-server.ts`, lists available tools, creates a render job, and polls status.
+
+Optional: Run the tool server directly (advanced):
+
+```bash
+npx tsx src/mastra/tools/remotion-server.ts
 ```
+
+Then send JSON-RPC over stdio if you need low-level control.
 
 ## Agent and Workflows
 
 - __Agent demo__: `node src/mastra/agents/simple-agent.js`
-  - Spawns the MCP server, lists tools, creates a job, fetches status.
-
+  - Spawns the stdio tool server, lists tools, creates a job, fetches status.
 - __Workflows__: see `src/mastra/workflows/remotion/`
   - `core.ts` class `RemotionWorkflow` provides:
     - `createVideoWorkflow(titleTexts: string[])`
@@ -224,16 +206,16 @@ npx tsx -e "import { buildBatchHelloWorkflow } from './src/mastra/workflows/remo
 
 ## Testing
 
-- __API/MCP sanity__: `npm run test:api` (spawns MCP server and calls `createRenderJob`).
-- __MCP demo__: `node demo-mcp.js` to see `tools/list` and `createRenderJob` responses.
+- __Agent/Tool sanity__: `npm run test:api` (starts the stdio tool server and calls `createRenderJob`).
+  - __Agent demo__: `node src/mastra/agents/simple-agent.js`.
 
-Note: `npm run test:mcp`, `npm run test:workflow`, and related inline examples in `package.json` may reference older paths (e.g., `remotion-workflow.ts`). Prefer the explicit `core.ts`/`factories.ts` one‑liners shown above.
+Note: Some legacy scripts (e.g., `test:mcp`, `test:workflow`) and older inline examples in `package.json` may reference deprecated paths (such as `remotion-workflow.ts`). Prefer the explicit `core.ts`/`factories.ts` one‑liners shown above.
 
 ## Configuration
 
 Environment variables:
 - `PORT` — Express server port (default `3000`).
-- `REMOTION_SERVE_URL` — Optional pre-built Remotion bundle URL; if not set, the servers bundle from `remotion/index.ts` at startup.
+- `REMOTION_SERVE_URL` — Optional pre-built Remotion bundle URL; if unset, the servers will bundle from the local Remotion entry at startup.
 
 ## Scripts Reference (package.json)
 
@@ -241,16 +223,14 @@ Environment variables:
 - `start` — Start Express server.
 - `remotion:studio` — Open Remotion Studio.
 - `build` — Bundle Remotion project.
-- `mcp:server` — Start MCP server (`mcp-server-simple.js`).
-- `mcp:demo` — Alias to start MCP server.
 - `agent:demo` / `mastra:agent` — Run simple agent demo.
-- `test:api` — Minimal MCP API test.
+- `test:api` — Minimal tool-server test.
 
 ## Troubleshooting
 
 - __Bundling takes long__: First run bundles Remotion. Subsequent runs are faster or can use `REMOTION_SERVE_URL`.
-- __No video output__: Check job status via HTTP or MCP; outputs should appear in `renders/`. Ensure the composition `compositionId` and `props` are valid for your Remotion project.
-- __Windows__: The `mcp-server-simple.js` launcher handles `.cmd` for `tsx` on Windows.
+- __No video output__: Check job status via HTTP or the agent/tool server; outputs should appear in `renders/`. Ensure the composition `compositionId` and `props` are valid for your Remotion project.
+- __Windows__: If running the tool server directly, use `npx tsx src/mastra/tools/remotion-server.ts` (this picks the right `.cmd` shim automatically).
 
 ## Next Steps
 
