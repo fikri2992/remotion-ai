@@ -39,14 +39,14 @@
     "remotion:upgrade": "remotion upgrade",
     "remotion:studio": "remotion studio",
     "mcp:server": "node mcp-server-simple.js",
-    "mcp:demo": "node mcp-server-simple.js",
+    "mcp:demo": "node demo-mcp.js",
     "test:mcp": "tsx test/mastra-mcp.test.js",
     "test:api": "node test/api-test.js",
-    "test:workflow": "tsx -e \"import { RemotionWorkflow } from './src/mastra/workflows/remotion-workflow.ts'; const workflow = new RemotionWorkflow(); workflow.createVideoWorkflow(['Test 1', 'Test 2']).then(console.log).catch(console.error)\"",
+    "test:workflow": "tsx -e \"import { RemotionWorkflow } from './src/mastra/workflows/remotion/core.ts'; const workflow = new RemotionWorkflow(); workflow.createVideoWorkflow(['Test 1','Test 2']).then(console.log).catch(console.error)\"",
     "test:all": "npm run test:api && npm run test:workflow",
     "agent:demo": "node src/mastra/agents/simple-agent.js",
-    "workflow:demo": "tsx -e \"import { RemotionWorkflow } from './src/mastra/workflows/remotion-workflow.ts'; const workflow = new RemotionWorkflow(); workflow.createVideoWorkflow(['Demo Video 1', 'Demo Video 2']).then(r => console.log('Workflow:', r)).then(() => workflow.monitorWorkflow(['demo-job-1']).then(s => console.log('Status:', s))).catch(console.error)\"",
+    "workflow:demo": "tsx -e \"import { RemotionWorkflow } from './src/mastra/workflows/remotion/core.ts'; const workflow = new RemotionWorkflow(); workflow.createVideoWorkflow(['Demo Video 1','Demo Video 2']).then(r => console.log('Workflow:', r)).catch(console.error)\"",
     "mastra:agent": "node src/mastra/agents/simple-agent.js",
-    "mastra:workflow": "tsx src/mastra/workflows/remotion-workflow.ts"
+    "mastra:workflow": "tsx -e \"import { buildBatchHelloWorkflow } from './src/mastra/workflows/remotion/factories.ts'; (async () => { const wf = await buildBatchHelloWorkflow(); const out = await wf.run({ titles: ['Hello','World'] }); console.log(out); })();\""
   }
 }

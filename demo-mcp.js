@@ -5,7 +5,7 @@ const path = require('path');
 
 // Start the MCP server
 console.log('Starting Remotion MCP server...');
-const mcpServer = spawn('node', [path.join(__dirname, 'mcp-server.js')], {
+const mcpServer = spawn('node', [path.join(__dirname, 'mcp-server-simple.js')], {
   stdio: ['pipe', 'pipe', 'inherit']
 });
 
