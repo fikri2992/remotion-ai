@@ -1,4 +1,4 @@
-import React from 'react';
+// React 17+ automatic JSX runtime: no React import needed
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
 import { LayoutConfig, defaultLayout, xForIndex } from './layout';
