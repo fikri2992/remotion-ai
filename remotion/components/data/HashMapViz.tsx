@@ -39,7 +39,6 @@ export const HashMapViz: React.FC<HashMapVizProps> = ({ present, emphasisKey, mo
               color: colors.textPrimary,
               fontFamily: typography.fontFamily,
               fontSize: 16,
-              transition: 'transform 150ms ease, background 150ms ease',
               transform: emph ? 'scale(1.05)' : 'scale(1)',
               boxShadow: '0 1px 2px rgba(0,0,0,0.06)'
             }}

@@ -12,7 +12,7 @@ export const RemotionRoot: React.FC = () => {
         id="HelloWorld"
         component={HelloWorld}
         durationInFrames={300}
-        fps={30}
+        fps={60}
         width={1920}
         height={1080}
         defaultProps={{
@@ -27,7 +27,7 @@ export const RemotionRoot: React.FC = () => {
         component={SlidingWindowScene}
         schema={slidingWindowCompSchema}
         durationInFrames={720}
-        fps={30}
+        fps={60}
         width={1920}
         height={1080}
         defaultProps={{
@@ -39,8 +39,8 @@ export const RemotionRoot: React.FC = () => {
         id="LongestSubstringExplainer"
         component={SlidingWindowExplainer}
         schema={slidingWindowExplainerSchema}
-        durationInFrames={computeExplainerDuration(["abcabcbb", "bbbbb", "pwwkew"]) }
-        fps={30}
+        durationInFrames={computeExplainerDuration(["abcabcbb", "bbbbb", "pwwkew"], 60) }
+        fps={60}
         width={1920}
         height={1080}
         defaultProps={{

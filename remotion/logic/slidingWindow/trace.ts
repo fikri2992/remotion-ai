@@ -18,6 +18,8 @@ export interface TraceConfig {
     moveLeftEach?: number; // per index advanced for timing estimate
     updateBest?: number;
   };
+  fps?: number;
+  tailSeconds?: number; // seconds of buffer at the end
 }
 
 const defaultDurations = {
@@ -28,6 +30,19 @@ const defaultDurations = {
   updateBest: 8,
 };
 
+export const baseFps = 30;
+export const durationsForFps = (fps: number, base: number = baseFps) => {
+  const scale = fps / base;
+  const round = (n: number) => Math.max(1, Math.round(n * scale));
+  return {
+    moveRight: round(defaultDurations.moveRight),
+    add: round(defaultDurations.add),
+    duplicate: round(defaultDurations.duplicate),
+    moveLeftEach: round(defaultDurations.moveLeftEach),
+    updateBest: round(defaultDurations.updateBest),
+  } as Required<NonNullable<TraceConfig['durations']>>;
+};
+
 export const traceLongestSubstring = (s: string, cfg: TraceConfig = {}): TraceResult => {
   const D = { ...defaultDurations, ...(cfg.durations ?? {}) };
   const steps: SlidingWindowStep[] = [];
@@ -35,7 +50,6 @@ export const traceLongestSubstring = (s: string, cfg: TraceConfig = {}): TraceRe
   let t = 0;
   let left = 0;
   let bestLen = 0;
-  let bestStart = 0;
   const lastSeen = new Map<string, number>();
 
   for (let right = 0; right < s.length; right++) {
@@ -66,7 +80,6 @@ export const traceLongestSubstring = (s: string, cfg: TraceConfig = {}): TraceRe
     const currLen = right - left + 1;
     if (currLen > bestLen) {
       bestLen = currLen;
-      bestStart = left;
       steps.push({ t, type: 'updateBest', start: left, end: right });
       t += D.updateBest;
     }
@@ -74,6 +87,8 @@ export const traceLongestSubstring = (s: string, cfg: TraceConfig = {}): TraceRe
     lastSeen.set(char, right);
   }
 
-  // Give some buffer at the end
-  return { steps, duration: t + 30 };
+  // Give some buffer at the end, scaled by fps
+  const tailSec = cfg.tailSeconds ?? 1;
+  const fpsUsed = cfg.fps ?? baseFps;
+  return { steps, duration: t + Math.max(1, Math.round(tailSec * fpsUsed)) };
 };

@@ -61,10 +61,19 @@ const tools = [
       properties: {
         titleText: {
           type: 'string',
-          description: 'The text to display in the video',
+          description: 'Optional: Text for HelloWorld demo',
+        },
+        compositionId: {
+          type: 'string',
+          description: 'Optional: Composition ID to render',
+        },
+        props: {
+          type: 'object',
+          description: 'Optional: Input props for the composition',
+          additionalProperties: true,
         },
       },
-      required: ['titleText'],
+      additionalProperties: false,
     },
   },
   {
@@ -98,10 +107,10 @@ const tools = [
 ];
 
 // Tool implementations
-const createRenderJob = async ({ titleText }) => {
+const createRenderJob = async ({ titleText, compositionId, props }) => {
   try {
     const { renderQueue } = await initializeServices();
-    const jobId = renderQueue.createJob({ titleText });
+    const jobId = renderQueue.createJob({ titleText, compositionId, props });
     
     return {
       content: [

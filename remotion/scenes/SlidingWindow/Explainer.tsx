@@ -6,7 +6,7 @@ import { colors } from '../../tokens/colors';
 import { TextReveal } from '../../components/text/TextReveal';
 import { KineticTerm } from '../../components/text/KineticTerm';
 import { SlidingWindowScene } from './Scene';
-import { traceLongestSubstring } from '../../logic/slidingWindow/trace';
+import { traceLongestSubstring, durationsForFps } from '../../logic/slidingWindow/trace';
 import { FadeInOut } from '../../components/transitions/FadeInOut';
 import { SlideFade } from '../../components/transitions/SlideFade';
 
@@ -28,16 +28,14 @@ export type SlidingWindowExplainerProps = z.infer<
   typeof slidingWindowExplainerSchema
 >;
 
-export const computeExplainerDuration = (examples: string[]): number => {
-  // Very short transitions
-  const intro = 120; // 4s at 30fps
-  const overlap = 3; // frames of overlap
-  const outro = 120; // 4s
+export const computeExplainerDuration = (examples: string[], fps: number = 30): number => {
+  // Hard cuts, no overlap; durations scale with fps
+  const intro = Math.max(1, Math.round(4 * fps)); // 4s
+  const outro = Math.max(1, Math.round(4 * fps)); // 4s
   const examplesDur = examples
-    .map((s) => traceLongestSubstring(s).duration)
+    .map((s) => traceLongestSubstring(s, { durations: durationsForFps(fps), fps }).duration)
     .reduce((a, b) => a + b, 0);
-  const transitions = (examples.length > 0 ? examples.length + 1 : 1); // intro->first, between examples, last->outro
-  return intro + examplesDur + outro - overlap * transitions;
+  return intro + examplesDur + outro;
 };
 
 const lengthOfLongestSubstring = (s: string) => {
@@ -61,13 +59,13 @@ export const SlidingWindowExplainer: React.FC<SlidingWindowExplainerProps> = ({
   intro,
   examples,
 }) => {
-  const { width } = useVideoConfig();
+  const { width, fps } = useVideoConfig();
+  const sec = (s: number) => Math.max(1, Math.round(s * fps));
   // Precompute segments
-  const introFrames = 120;
-  const overlap = 3;
+  const introFrames = sec(4);
   const segments = useMemo(
-    () => examples.map((s) => ({ s, dur: traceLongestSubstring(s).duration })),
-    [examples]
+    () => examples.map((s) => ({ s, dur: traceLongestSubstring(s, { durations: durationsForFps(fps), fps }).duration })),
+    [examples, fps]
   );
 
   let cursor = 0;
@@ -76,7 +74,7 @@ export const SlidingWindowExplainer: React.FC<SlidingWindowExplainerProps> = ({
   // Intro
   sequences.push(
     <Sequence key="intro" from={cursor} durationInFrames={introFrames}>
-      <FadeInOut startFrame={cursor} durationInFrames={introFrames} fadeIn={overlap} fadeOut={overlap}>
+      <FadeInOut startFrame={cursor} durationInFrames={introFrames} fadeIn={0} fadeOut={0}>
         <div
           style={{
             position: 'absolute',
@@ -113,15 +111,16 @@ export const SlidingWindowExplainer: React.FC<SlidingWindowExplainerProps> = ({
 
   // Examples
   segments.forEach(({ s, dur }, idx) => {
-    const start = Math.max(0, cursor - overlap);
+    const start = cursor;
     const label = `Example ${idx + 1}: s = "${s}"  →  answer = ${lengthOfLongestSubstring(
       s
     )}`;
 
     // Label overlay with slide+fade
+    const labelFrames = Math.min(sec(0.6), dur);
     sequences.push(
-      <Sequence key={`label-${idx}`} from={start} durationInFrames={Math.min(18, dur)}>
-        <SlideFade startFrame={start} durationInFrames={Math.min(18, dur)} axis="y" distance={12} fadeIn={4} fadeOut={4}>
+      <Sequence key={`label-${idx}`} from={start} durationInFrames={labelFrames}>
+        <SlideFade startFrame={start} durationInFrames={labelFrames} axis="y" distance={12} fadeIn={sec(0.2)} fadeOut={sec(0.2)}>
           <div
             style={{
               position: 'absolute',
@@ -138,12 +137,10 @@ export const SlidingWindowExplainer: React.FC<SlidingWindowExplainerProps> = ({
       </Sequence>
     );
 
-    // Example scene with crossfade
+    // Example scene with hard cut (no fade)
     sequences.push(
       <Sequence key={`example-${idx}`} from={start} durationInFrames={dur}>
-        <FadeInOut startFrame={start} durationInFrames={dur} fadeIn={overlap} fadeOut={0}>
-          <SlidingWindowScene s={s} frameOffset={start} />
-        </FadeInOut>
+        <SlidingWindowScene s={s} frameOffset={start} />
       </Sequence>
     );
 
@@ -152,10 +149,10 @@ export const SlidingWindowExplainer: React.FC<SlidingWindowExplainerProps> = ({
 
   // Outro
   const outroFrames = 120;
-  const outroStart = Math.max(0, cursor - overlap);
+  const outroStart = cursor;
   sequences.push(
     <Sequence key="outro" from={outroStart} durationInFrames={outroFrames}>
-      <FadeInOut startFrame={outroStart} durationInFrames={outroFrames} fadeIn={overlap} fadeOut={overlap}>
+      <FadeInOut startFrame={outroStart} durationInFrames={outroFrames} fadeIn={0} fadeOut={0}>
         <div
           style={{
             position: 'absolute',

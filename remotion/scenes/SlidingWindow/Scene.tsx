@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useCurrentFrame } from 'remotion';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
 import { z } from 'zod';
 import { VirtualCamera } from '../../components/camera/VirtualCamera';
 import { StringViz } from '../../components/data/StringViz';
@@ -10,7 +10,7 @@ import { CodeBlock } from '../../components/code/CodeBlock';
 import { Scoreboard } from '../../components/hud/Scoreboard';
 import { colors } from '../../tokens/colors';
 import { typography } from '../../tokens/typography';
-import { traceLongestSubstring, SlidingWindowStep } from '../../logic/slidingWindow/trace';
+import { traceLongestSubstring, SlidingWindowStep, durationsForFps } from '../../logic/slidingWindow/trace';
 
 export const slidingWindowCompSchema = z.object({
   s: z.string().default('abcabcbb'),
@@ -61,15 +61,25 @@ const activeLineFor = (step?: SlidingWindowStep): number | undefined => {
 export const SlidingWindowScene: React.FC<SlidingWindowSceneProps> = ({ s, frameOffset = 0 }) => {
   const absFrame = useCurrentFrame();
   const frame = Math.max(0, absFrame - frameOffset);
+  const { fps } = useVideoConfig();
 
-  const trace = useMemo(() => traceLongestSubstring(s), [s]);
+  const trace = useMemo(() => traceLongestSubstring(s, { durations: durationsForFps(fps), fps }), [s, fps]);
   const stepIndex = useMemo(() => {
-    let idx = -1;
-    for (let i = 0; i < trace.steps.length; i++) {
-      const st: SlidingWindowStep = trace.steps[i];
-      if (st.t <= frame) idx = i; else break;
+    const arr = trace.steps;
+    let lo = 0;
+    let hi = arr.length - 1;
+    let res = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const t = arr[mid].t;
+      if (t <= frame) {
+        res = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
     }
-    return Math.max(0, idx);
+    return Math.max(0, res);
   }, [trace.steps, frame]);
 
   const currentStep = trace.steps[stepIndex];

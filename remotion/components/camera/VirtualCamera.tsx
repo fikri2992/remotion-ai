@@ -68,7 +68,7 @@ export const VirtualCamera: React.FC<VirtualCameraProps> = ({
 
   return (
     <div style={{ width, height, overflow: 'hidden', position: 'relative', background: 'transparent' }}>
-      <div style={{ width: '100%', height: '100%', transform: transformStyle, transformOrigin: '50% 50%' }}>
+      <div style={{ width: '100%', height: '100%', transform: `${transformStyle} translateZ(0)`, transformOrigin: '50% 50%', willChange: 'transform' }}>
         {children}
       </div>
     </div>

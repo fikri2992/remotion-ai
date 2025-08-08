@@ -7,7 +7,12 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 interface JobData {
-  titleText: string;
+  // If provided, target this composition
+  compositionId?: string;
+  // Props to pass to the composition
+  props?: Record<string, unknown>;
+  // Back-compat with the HelloWorld demo composition
+  titleText?: string;
 }
 
 type JobState =
@@ -33,7 +38,8 @@ type JobState =
       data: JobData;
     };
 
-const compositionId = "HelloWorld";
+const DEFAULT_HELLO = "HelloWorld";
+const DEFAULT_EXPLAINER = "LongestSubstringExplainer";
 
 export const makeRenderQueue = ({
   port,
@@ -63,13 +69,24 @@ export const makeRenderQueue = ({
     });
 
     try {
-      const inputProps = {
-        titleText: job.data.titleText,
-      };
+      const inputProps =
+        job.data.props ??
+        (job.data.titleText
+          ? { titleText: job.data.titleText }
+          : {
+              title: "Longest Substring Without Repeating Characters",
+              intro:
+                "We use the Sliding Window technique. Move right to expand, move left to remove duplicates.",
+              examples: ["abcabcbb", "bbbbb", "pwwkew"],
+            });
+
+      const targetCompositionId =
+        job.data.compositionId ??
+        (job.data.titleText ? DEFAULT_HELLO : DEFAULT_EXPLAINER);
 
       const composition = await selectComposition({
         serveUrl,
-        id: compositionId,
+        id: targetCompositionId,
         inputProps,
       });
 
@@ -78,7 +95,14 @@ export const makeRenderQueue = ({
         serveUrl,
         composition,
         inputProps,
+        // High-quality, color-accurate output
         codec: "h264",
+        imageFormat: "png",
+        jpegQuality: 100,
+        crf: 18,
+        x264Preset: "slow",
+        pixelFormat: "yuv420p",
+        colorSpace: "bt709",
         onProgress: (progress) => {
           console.info(`${jobId} render progress:`, progress.progress);
           jobs.set(jobId, {

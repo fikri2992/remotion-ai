@@ -41,7 +41,6 @@ export const TextReveal: React.FC<TextRevealProps> = ({
         const translateY = shouldShow ? 0 : 8;
         const spanStyle: React.CSSProperties = {
           display: mode === 'byWord' ? 'inline-block' : 'block',
-          transition: 'opacity 100ms linear',
           opacity,
           transform: `translateY(${translateY}px)`,
           marginRight: mode === 'byWord' ? 6 : 0,

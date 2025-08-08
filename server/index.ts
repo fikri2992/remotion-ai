@@ -2,6 +2,7 @@ import express from "express";
 import { makeRenderQueue } from "./render-queue";
 import { bundle } from "@remotion/bundler";
 import path from "node:path";
+import fs from "node:fs";
 import { ensureBrowser } from "@remotion/renderer";
 
 const { PORT = 3000, REMOTION_SERVE_URL } = process.env;
@@ -10,6 +11,10 @@ function setupApp({ remotionBundleUrl }: { remotionBundleUrl: string }) {
   const app = express();
 
   const rendersDir = path.resolve("renders");
+  // Ensure renders directory exists
+  try {
+    fs.mkdirSync(rendersDir, { recursive: true });
+  } catch {}
 
   const queue = makeRenderQueue({
     port: Number(PORT),
@@ -23,14 +28,22 @@ function setupApp({ remotionBundleUrl }: { remotionBundleUrl: string }) {
 
   // Endpoint to create a new job
   app.post("/renders", async (req, res) => {
-    const titleText = req.body?.titleText || "Hello, world!";
+    const { titleText, compositionId, props } = req.body ?? {};
 
-    if (typeof titleText !== "string") {
-      res.status(400).json({ message: "titleText must be a string" });
+    if (titleText !== undefined && typeof titleText !== "string") {
+      res.status(400).json({ message: "titleText must be a string if provided" });
+      return;
+    }
+    if (compositionId !== undefined && typeof compositionId !== "string") {
+      res.status(400).json({ message: "compositionId must be a string if provided" });
+      return;
+    }
+    if (props !== undefined && (typeof props !== "object" || props === null || Array.isArray(props))) {
+      res.status(400).json({ message: "props must be an object if provided" });
       return;
     }
 
-    const jobId = queue.createJob({ titleText });
+    const jobId = queue.createJob({ titleText, compositionId, props });
 
     res.json({ jobId });
   });

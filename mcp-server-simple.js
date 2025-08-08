@@ -50,16 +50,25 @@ const handleRequest = async (request) => {
             tools: [
               {
                 name: 'createRenderJob',
-                description: 'Create a new video rendering job with the specified title text',
+                description: 'Create a new render job. Provide compositionId and props for non-HelloWorld comps; otherwise use titleText for HelloWorld demo.',
                 inputSchema: {
                   type: 'object',
                   properties: {
                     titleText: {
                       type: 'string',
-                      description: 'The text to display in the video',
+                      description: 'Optional: Text for HelloWorld demo',
+                    },
+                    compositionId: {
+                      type: 'string',
+                      description: 'Optional: Composition ID to render',
+                    },
+                    props: {
+                      type: 'object',
+                      description: 'Optional: Input props for the composition',
+                      additionalProperties: true,
                     },
                   },
-                  required: ['titleText'],
+                  additionalProperties: false,
                 },
               },
               {
@@ -100,7 +109,7 @@ const handleRequest = async (request) => {
         switch (name) {
           case 'createRenderJob':
             const { renderQueue } = await initializeServices();
-            const jobId = renderQueue.createJob({ titleText: args.titleText });
+            const jobId = renderQueue.createJob({ titleText: args?.titleText, compositionId: args?.compositionId, props: args?.props });
             return {
               jsonrpc: '2.0',
               id: request.id,

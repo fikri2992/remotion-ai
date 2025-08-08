@@ -3,13 +3,14 @@ import { makeRenderQueue } from '../../../server/render-queue';
 import path from 'node:path';
 import { bundle } from '@remotion/bundler';
 import { ensureBrowser } from '@remotion/renderer';
+import fs from 'node:fs';
 
 // Workflow for automated video creation
 export class RemotionWorkflow {
-  private renderQueue: any = null;
+  private renderQueue: ReturnType<typeof makeRenderQueue> | null = null;
   private remotionBundleUrl: string | null = null;
 
-  async initialize() {
+  async initialize(): Promise<{ renderQueue: ReturnType<typeof makeRenderQueue>; bundleUrl: string }> {
     if (!this.remotionBundleUrl) {
       await ensureBrowser();
       const { REMOTION_SERVE_URL } = process.env;
@@ -25,14 +26,47 @@ export class RemotionWorkflow {
 
     if (!this.renderQueue) {
       const rendersDir = path.resolve('renders');
+      try {
+        fs.mkdirSync(rendersDir, { recursive: true });
+      } catch {}
       this.renderQueue = makeRenderQueue({
         port: 0,
-        serveUrl: this.remotionBundleUrl,
+        serveUrl: this.remotionBundleUrl as string,
         rendersDir,
       });
     }
 
-    return { renderQueue: this.renderQueue, bundleUrl: this.remotionBundleUrl };
+    return { renderQueue: this.renderQueue, bundleUrl: this.remotionBundleUrl as string };
+  }
+
+  // Create explainer workflow for Longest Substring composition
+  async createExplainerWorkflow({
+    examples = ["abcabcbb", "bbbbb", "pwwkew"],
+    title = "Longest Substring Without Repeating Characters",
+    intro = "We use the Sliding Window technique. Move right to expand, move left to remove duplicates.",
+  }: {
+    examples?: string[];
+    title?: string;
+    intro?: string;
+  }) {
+    const { renderQueue } = await this.initialize();
+    const jobId = renderQueue.createJob({
+      compositionId: "LongestSubstringExplainer",
+      props: { title, intro, examples },
+    });
+
+    return {
+      workflowId: `explainer-${Date.now()}`,
+      jobs: [
+        {
+          jobId,
+          compositionId: "LongestSubstringExplainer",
+          props: { title, intro, examples },
+          status: 'queued',
+        },
+      ],
+      totalJobs: 1,
+    };
   }
 
   // Create video workflow
@@ -64,11 +98,13 @@ export class RemotionWorkflow {
     for (const jobId of jobIds) {
       const job = renderQueue.jobs.get(jobId);
       if (job) {
+        const videoUrl = (job as any).videoUrl;
+        const progress = (job as any).progress ?? 0;
         statuses.push({
           jobId,
-          status: job.status,
-          progress: job.progress || 0,
-          url: job.url,
+          status: (job as any).status,
+          progress,
+          videoUrl,
         });
       }
     }

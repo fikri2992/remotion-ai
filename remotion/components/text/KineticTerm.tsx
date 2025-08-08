@@ -27,7 +27,6 @@ export const KineticTerm: React.FC<KineticTermProps> = ({ text, active = false, 
         color,
         transform: `scale(${scale})`,
         textShadow: active ? shadow : undefined,
-        transition: 'color 120ms ease',
         ...style,
       }}
     >

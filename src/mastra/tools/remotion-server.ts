@@ -52,7 +52,9 @@ const server = new Server(
 
 // Tool schemas
 const createRenderJobSchema = z.object({
-  titleText: z.string().describe('The text to display in the video'),
+  titleText: z.string().optional().describe('Optional: Text for HelloWorld demo'),
+  compositionId: z.string().optional().describe('Optional: Composition ID to render'),
+  props: z.record(z.any()).optional().describe('Optional: Input props for the composition'),
 });
 
 const getRenderStatusSchema = z.object({
@@ -64,10 +66,10 @@ const cancelRenderJobSchema = z.object({
 });
 
 // Tool implementations
-const createRenderJob = async ({ titleText }: z.infer<typeof createRenderJobSchema>) => {
+const createRenderJob = async ({ titleText, compositionId, props }: z.infer<typeof createRenderJobSchema>) => {
   try {
     const { renderQueue } = await initializeServices();
-    const jobId = renderQueue.createJob({ titleText });
+    const jobId = renderQueue.createJob({ titleText, compositionId, props });
     
     return {
       content: [

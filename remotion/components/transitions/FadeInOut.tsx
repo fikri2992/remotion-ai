@@ -39,7 +39,8 @@ export const FadeInOut: React.FC<FadeInOutProps> = ({
         width: '100%',
         height: '100%',
         opacity,
-        transition: 'opacity 100ms linear',
+        willChange: 'opacity, transform',
+        transform: 'translateZ(0)',
         ...style,
       }}
     >
