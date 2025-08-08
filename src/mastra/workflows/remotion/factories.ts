@@ -8,14 +8,19 @@ import { explainerInputZ, propsZ, loopRecordZ } from './schemas';
 
 export const DEFAULT_EXPLAINER_COMPOSITION_ID = 'LongestSubstringExplainer';
 
+// Local types
+type RenderQueue = ReturnType<typeof makeRenderQueue>;
+type ExplainerInput = z.infer<typeof explainerInputZ>;
+type RenderProps = z.infer<typeof propsZ>;
+
 export interface ExplainerWorkflowConfig {
   compositionId?: string;
   docsProvider?: DocsProvider;
   selfCritic?: SelfCriticAgent;
   idPrefix?: string; // to avoid step-id collisions when composing
   docsLimit?: number; // max docs snippets per iteration
-  propsBuilder?: (input: z.infer<typeof explainerInputZ>) => z.infer<typeof propsZ>;
-  queueJobBuilder?: (inputData: any) => { compositionId: string; props: any };
+  propsBuilder?: (input: ExplainerInput) => RenderProps;
+  queueJobBuilder?: (inputData: { renderQueue: RenderQueue; workingProps: RenderProps }) => { compositionId: string; props: RenderProps };
   // Stop if returns true for a given iteration state
   stopPredicate?: (state: {
     iteration: number;
@@ -29,10 +34,10 @@ export function makeInitRemotionStep(config?: ExplainerWorkflowConfig) {
   return createStep({
     id: `${prefix}initRemotion`,
     inputSchema: explainerInputZ,
-    outputSchema: explainerInputZ.extend({ renderQueue: z.any(), bundleUrl: z.string() }),
+    outputSchema: explainerInputZ.extend({ renderQueue: z.custom<RenderQueue>(), bundleUrl: z.string() }),
     execute: async ({ inputData }) => {
       const { renderQueue, bundleUrl } = await remotionWorkflow.initialize();
-      return { ...inputData, renderQueue, bundleUrl } as any;
+      return { ...inputData, renderQueue, bundleUrl };
     },
   });
 }
@@ -51,10 +56,11 @@ export function makeBuildInitialPropsStep(config?: ExplainerWorkflowConfig) {
         loop: z.array(loopRecordZ).default([]),
       }),
       execute: async ({ inputData }) => {
-        const workingProps = config?.propsBuilder
-          ? config.propsBuilder(inputData as any)
-          : ({ title: (inputData as any).title, intro: (inputData as any).intro, examples: (inputData as any).examples } as any);
-        return { ...inputData, workingProps, iteration: 1, loop: [] } as any;
+        const base: ExplainerInput = inputData as ExplainerInput;
+        const workingProps: RenderProps = config?.propsBuilder
+          ? config.propsBuilder(base)
+          : ({ title: base.title, intro: base.intro, examples: base.examples });
+        return { ...inputData, workingProps, iteration: 1, loop: [] };
       },
     }),
   };
@@ -76,21 +82,24 @@ export function makeReviewIterationStep(config?: ExplainerWorkflowConfig) {
       loop: z.array(loopRecordZ),
     }),
     execute: async ({ inputData }) => {
-      const { topics, fps, criteria, iteration } = inputData as any;
+      const { topics, fps, criteria, iteration } = inputData as ExplainerInput & { iteration: number; loop: z.infer<typeof loopRecordZ>[]; workingProps: RenderProps };
       const docsContext = await provider.fetchDocsContext(topics, config?.docsLimit ?? 4);
       const { review, fixedArtifacts, shouldStop } = await critic.reviewAndFix({
-        renderProps: (inputData as any).workingProps,
+        renderProps: (inputData as { workingProps: RenderProps }).workingProps,
         fps,
         docsContext,
         criteria: (criteria ?? undefined) as SuccessCriteria | undefined,
         iteration,
       });
-      const nextProps = fixedArtifacts?.renderProps
-        ? { ...((inputData as any).workingProps as any), ...(fixedArtifacts.renderProps as any) }
-        : (inputData as any).workingProps;
+      const nextProps: RenderProps = fixedArtifacts?.renderProps
+        ? { ...(inputData as { workingProps: RenderProps }).workingProps, ...(fixedArtifacts.renderProps as Partial<RenderProps>) }
+        : (inputData as { workingProps: RenderProps }).workingProps;
       const nextIteration = (iteration ?? 1) + 1;
-      const loop = [...(((inputData as any).loop ?? []) as any[]), { iteration: iteration ?? 1, review, docsContext }];
-      return { ...(inputData as any), workingProps: nextProps as any, shouldStop: Boolean(shouldStop), iteration: nextIteration, loop } as any;
+      const loop = [
+        ...(((inputData as { loop?: Array<z.infer<typeof loopRecordZ>> }).loop) ?? []),
+        { iteration: iteration ?? 1, review, docsContext },
+      ];
+      return { ...inputData, workingProps: nextProps, shouldStop: Boolean(shouldStop), iteration: nextIteration, loop };
     },
   });
 
@@ -106,11 +115,11 @@ export function makeQueueRenderStep(config?: ExplainerWorkflowConfig) {
     inputSchema: reviewStep.outputSchema,
     outputSchema: z.object({ jobId: z.string(), props: propsZ, loop: z.array(loopRecordZ) }),
     execute: async ({ inputData }) => {
-      const payload = config?.queueJobBuilder
-        ? config.queueJobBuilder(inputData)
-        : { compositionId, props: (inputData as any).workingProps };
-      const jobId = (inputData.renderQueue as ReturnType<typeof makeRenderQueue>).createJob(payload as any);
-      return { jobId, props: (inputData as any).workingProps, loop: (inputData as any).loop } as any;
+      const payload: { compositionId: string; props: RenderProps } = config?.queueJobBuilder
+        ? config.queueJobBuilder(inputData as { renderQueue: RenderQueue; workingProps: RenderProps })
+        : { compositionId, props: (inputData as { workingProps: RenderProps }).workingProps };
+      const jobId = (inputData.renderQueue as RenderQueue).createJob(payload);
+      return { jobId, props: (inputData as { workingProps: RenderProps }).workingProps, loop: (inputData as { loop: z.infer<typeof loopRecordZ>[] }).loop };
     },
   });
   return { reviewStep, queueStep };
@@ -118,11 +127,11 @@ export function makeQueueRenderStep(config?: ExplainerWorkflowConfig) {
 
 export function buildExplainerReviewedWorkflow(config?: ExplainerWorkflowConfig) {
   const cfg = { idPrefix: 'cfg.', ...(config ?? {}) };
-  const { initStep } = makeInitRemotionStep(cfg) as any; // for type locality
+  const initStep = makeInitRemotionStep(cfg); // for type locality
   const { buildStep } = makeBuildInitialPropsStep(cfg);
   const { reviewStep } = makeReviewIterationStep(cfg);
   const { queueStep } = makeQueueRenderStep(cfg);
-  const stop = cfg.stopPredicate ?? ((s: { iteration: number; maxIterations: number; shouldStop?: boolean }) => s.shouldStop || s.iteration > s.maxIterations);
+  const stop = cfg.stopPredicate ?? ((s: { iteration: number; maxIterations: number; shouldStop?: boolean }) => Boolean(s.shouldStop) || s.iteration > s.maxIterations);
 
   return createWorkflow({
     id: 'explainer-reviewed-workflow-configurable',
@@ -135,7 +144,7 @@ export function buildExplainerReviewedWorkflow(config?: ExplainerWorkflowConfig)
     .dowhile(
       reviewStep,
       async ({ inputData }) => {
-        const s = inputData as any;
+        const s = inputData as ExplainerInput & { iteration: number; shouldStop?: boolean };
         return !stop({ iteration: s.iteration, maxIterations: s.maxIterations, shouldStop: s.shouldStop });
       }
     )
@@ -148,10 +157,10 @@ export function makeInitForBatchStep() {
   return createStep({
     id: 'initForBatch',
     inputSchema: z.object({ titles: z.array(z.string()) }),
-    outputSchema: z.object({ titles: z.array(z.string()), renderQueue: z.any() }),
+    outputSchema: z.object({ titles: z.array(z.string()), renderQueue: z.custom<RenderQueue>() }),
     execute: async ({ inputData }) => {
       const { renderQueue } = await remotionWorkflow.initialize();
-      return { ...inputData, renderQueue } as any;
+      return { ...inputData, renderQueue };
     },
   });
 }
@@ -163,7 +172,7 @@ export function makeCreateJobsFromTitlesStep() {
     inputSchema: init.outputSchema,
     outputSchema: z.object({ jobIds: z.array(z.string()) }),
     execute: async ({ inputData }) => {
-      const rq = inputData.renderQueue as ReturnType<typeof makeRenderQueue>;
+      const rq = inputData.renderQueue as RenderQueue;
       const jobIds: string[] = [];
       for (const titleText of inputData.titles) {
         const id = rq.createJob({ titleText });
@@ -185,7 +194,7 @@ export function buildBatchHelloWorkflow() {
 
 // Monitor factories
 export interface MonitorWorkflowConfig {
-  donePredicate?: (summary: { inProgress: number; completed: number; failed: number; statuses: any[] }) => boolean;
+  donePredicate?: (summary: { inProgress: number; completed: number; failed: number; statuses: Array<{ jobId: string; status: 'queued' | 'in-progress' | 'completed' | 'failed'; progress?: number; videoUrl?: string }> }) => boolean;
   defaultIntervalMs?: number;
   idPrefix?: string;
 }
@@ -195,10 +204,10 @@ export function makeInitOnlyStep(config?: MonitorWorkflowConfig) {
   return createStep({
     id: `${prefix}initOnly`,
     inputSchema: z.object({ jobIds: z.array(z.string()), intervalMs: z.number().int().min(100).max(60000).default(1000) }),
-    outputSchema: z.object({ jobIds: z.array(z.string()), intervalMs: z.number(), renderQueue: z.any() }),
+    outputSchema: z.object({ jobIds: z.array(z.string()), intervalMs: z.number(), renderQueue: z.custom<RenderQueue>() }),
     execute: async ({ inputData }) => {
       const { renderQueue } = await remotionWorkflow.initialize();
-      return { ...inputData, renderQueue } as any;
+      return { ...inputData, renderQueue };
     },
   });
 }
@@ -206,19 +215,30 @@ export function makeInitOnlyStep(config?: MonitorWorkflowConfig) {
 export function makeMonitorTickStep(config?: MonitorWorkflowConfig) {
   const prefix = config?.idPrefix ?? '';
   const init = makeInitOnlyStep(config);
+  const statusZ = z.object({ jobId: z.string(), status: z.enum(['queued', 'in-progress', 'completed', 'failed']), progress: z.number().optional(), videoUrl: z.string().optional() });
+  type Queued = { status: 'queued'; data: unknown; cancel: () => void };
+  type InProgress = { status: 'in-progress'; progress: number; data: unknown; cancel: () => void };
+  type Completed = { status: 'completed'; videoUrl: string; data: unknown };
+  type Failed = { status: 'failed'; error: Error; data: unknown };
+  type JobState = Queued | InProgress | Completed | Failed;
   const tick = createStep({
     id: `${prefix}monitorTick`,
     inputSchema: init.outputSchema,
-    outputSchema: init.outputSchema.extend({ summary: z.object({ completed: z.number(), inProgress: z.number(), failed: z.number(), statuses: z.array(z.any()) }) }),
+    outputSchema: init.outputSchema.extend({ summary: z.object({ completed: z.number(), inProgress: z.number(), failed: z.number(), statuses: z.array(statusZ) }) }),
     execute: async ({ inputData }) => {
-      const interval = (inputData as any).intervalMs ?? (config?.defaultIntervalMs ?? 1000);
+      const interval = (inputData.intervalMs ?? (config?.defaultIntervalMs ?? 1000));
       await new Promise((res) => setTimeout(res, interval));
-      const rq = (inputData as any).renderQueue as ReturnType<typeof makeRenderQueue>;
-      const statuses: Array<{ jobId: string; status: string; progress?: number; videoUrl?: string }> = [];
-      for (const jobId of (inputData as any).jobIds) {
-        const job = rq.jobs.get(jobId) as any;
-        if (job) {
-          statuses.push({ jobId, status: job.status, progress: job.progress ?? 0, videoUrl: job.videoUrl });
+      const rq = inputData.renderQueue as RenderQueue;
+      const statuses: Array<z.infer<typeof statusZ>> = [];
+      for (const jobId of inputData.jobIds) {
+        const job = rq.jobs.get(jobId) as JobState | undefined;
+        if (!job) continue;
+        if (job.status === 'completed') {
+          statuses.push({ jobId, status: job.status, videoUrl: job.videoUrl });
+        } else if (job.status === 'in-progress') {
+          statuses.push({ jobId, status: job.status, progress: job.progress ?? 0 });
+        } else {
+          statuses.push({ jobId, status: job.status });
         }
       }
       const summary = {
@@ -227,7 +247,7 @@ export function makeMonitorTickStep(config?: MonitorWorkflowConfig) {
         failed: statuses.filter((s) => s.status === 'failed').length,
         statuses,
       };
-      return { ...inputData, summary } as any;
+      return { ...inputData, summary };
     },
   });
   return { init, tick };
@@ -236,15 +256,20 @@ export function makeMonitorTickStep(config?: MonitorWorkflowConfig) {
 export function makeCancelJobsStep(config?: MonitorWorkflowConfig) {
   const prefix = config?.idPrefix ?? '';
   const init = makeInitOnlyStep(config);
+  type Queued = { status: 'queued'; data: unknown; cancel: () => void };
+  type InProgress = { status: 'in-progress'; progress: number; data: unknown; cancel: () => void };
+  type Completed = { status: 'completed'; videoUrl: string; data: unknown };
+  type Failed = { status: 'failed'; error: Error; data: unknown };
+  type JobState = Queued | InProgress | Completed | Failed;
   const cancel = createStep({
     id: `${prefix}cancelJobs`,
     inputSchema: init.outputSchema,
     outputSchema: z.object({ cancelled: z.array(z.string()), message: z.string() }),
     execute: async ({ inputData }) => {
-      const rq = (inputData as any).renderQueue as ReturnType<typeof makeRenderQueue>;
+      const rq = inputData.renderQueue as RenderQueue;
       const cancelled: string[] = [];
-      for (const jobId of (inputData as any).jobIds) {
-        const job = rq.jobs.get(jobId) as any;
+      for (const jobId of inputData.jobIds) {
+        const job = rq.jobs.get(jobId) as JobState | undefined;
         if (job && (job.status === 'queued' || job.status === 'in-progress')) {
           job.cancel();
           cancelled.push(jobId);
@@ -265,7 +290,9 @@ export function buildMonitorUntilDoneWorkflow(config?: MonitorWorkflowConfig) {
     .dountil(
       tick,
       async ({ inputData }) => {
-        const s = ((inputData as any).summary) as any;
+        type SummaryForDone = { inProgress: number; completed: number; failed: number; statuses: Array<{ jobId: string; status: 'queued' | 'in-progress' | 'completed' | 'failed'; progress?: number; videoUrl?: string }> };
+        const out = inputData as z.infer<typeof tick.outputSchema>;
+        const s = out.summary as SummaryForDone;
         return Boolean(s) && done(s);
       }
     )

@@ -25,11 +25,40 @@ export const explainerInputZ = z.object({
   criteria: successCriteriaZ.optional(),
 });
 
+// Docs & Review schemas (to avoid z.any)
+export const docsSnippetZ = z.object({
+  path: z.string(),
+  excerpt: z.string(),
+});
+
+export const docsContextZ = z.object({
+  topics: z.array(z.string()),
+  snippets: z.array(docsSnippetZ),
+  fetchedAt: z.string(),
+});
+
+export const reviewIssueZ = z.object({
+  severity: z.enum(['info', 'warn', 'error']),
+  message: z.string(),
+  path: z.string().optional(),
+});
+
+export const reviewZ = z.object({
+  issues: z.array(reviewIssueZ),
+  score: z.number().optional(),
+  audit: z
+    .object({
+      citations: z.array(docsSnippetZ).optional(),
+      notes: z.array(z.string()).optional(),
+    })
+    .optional(),
+});
+
 // Loop record for review iterations
 export const loopRecordZ = z.object({
   iteration: z.number(),
-  review: z.any(),
-  docsContext: z.any(),
+  review: reviewZ,
+  docsContext: docsContextZ,
 });
 
 // Render props for the explainer composition
@@ -44,9 +73,7 @@ export const batchInputZ = z.object({
   titles: z.array(z.string()),
 });
 
-export const batchInitZ = batchInputZ.extend({
-  renderQueue: z.any(),
-});
+// Avoid specifying renderQueue shape here; steps use z.custom for it locally
 
 // Monitoring workflow schemas
 export const monitorInputZ = z.object({

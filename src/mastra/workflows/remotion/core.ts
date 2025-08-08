@@ -3,14 +3,16 @@ import path from 'node:path';
 import { bundle } from '@remotion/bundler';
 import { ensureBrowser } from '@remotion/renderer';
 import fs from 'node:fs';
-import { MastraMcpDocsProvider, NoopDocsProvider, type DocsProvider } from '../../agents/docs-provider';
-import { SelfCriticAgent, type SuccessCriteria } from '../../agents/self-critic-agent';
+import { MastraMcpDocsProvider, type DocsProvider, type DocsContext } from '../../agents/docs-provider';
+import { SelfCriticAgent, type SuccessCriteria, type Review } from '../../agents/self-critic-agent';
+import { z } from 'zod';
+import { propsZ } from './schemas';
 
 // Workflow for automated video creation (class-based, kept for backward compatibility)
 export class RemotionWorkflow {
   private renderQueue: ReturnType<typeof makeRenderQueue> | null = null;
   private remotionBundleUrl: string | null = null;
-  private docsProvider: MastraMcpDocsProvider | NoopDocsProvider;
+  private docsProvider: DocsProvider;
   private selfCritic: SelfCriticAgent;
 
   constructor() {
@@ -21,7 +23,7 @@ export class RemotionWorkflow {
 
   // Allow host to inject a real MCP-backed docs provider (e.g., using @mastra/mcp)
   setDocsProvider(provider: DocsProvider) {
-    this.docsProvider = provider as any;
+    this.docsProvider = provider;
     // keep selfCritic in sync with new provider
     this.selfCritic = new SelfCriticAgent({ docsProvider: provider });
   }
@@ -44,7 +46,13 @@ export class RemotionWorkflow {
       const rendersDir = path.resolve('renders');
       try {
         fs.mkdirSync(rendersDir, { recursive: true });
-      } catch {}
+      } catch (e) {
+        const err = e as NodeJS.ErrnoException;
+        if (err.code !== 'EEXIST') {
+          // Surface unexpected FS errors
+          throw err;
+        }
+      }
       this.renderQueue = makeRenderQueue({
         port: 0,
         serveUrl: this.remotionBundleUrl as string,
@@ -105,8 +113,9 @@ export class RemotionWorkflow {
   }) {
     const { renderQueue } = await this.initialize();
 
-    let workingProps: Record<string, unknown> = { title, intro, examples };
-    const loop: Array<{ iteration: number; review: any; docsContext: any }> = [];
+    type RenderProps = z.infer<typeof propsZ>;
+    let workingProps: RenderProps = { title, intro, examples };
+    const loop: Array<{ iteration: number; review: Review; docsContext: DocsContext }> = [];
 
     for (let i = 1; i <= Math.max(1, maxIterations); i++) {
       // Fetch docs context each iteration to allow topic refinement later
@@ -124,13 +133,13 @@ export class RemotionWorkflow {
 
       // Apply any fixes
       if (fixedArtifacts?.renderProps) {
-        workingProps = { ...workingProps, ...fixedArtifacts.renderProps };
+        workingProps = { ...workingProps, ...(fixedArtifacts.renderProps as Partial<RenderProps>) };
       }
 
       if (shouldStop) break;
     }
 
-    const finalProps = workingProps as { title: string; intro: string; examples: string[] };
+    const finalProps = workingProps;
 
     const jobId = renderQueue.createJob({
       compositionId: "LongestSubstringExplainer",
@@ -176,14 +185,19 @@ export class RemotionWorkflow {
   // Monitor workflow progress
   async monitorWorkflow(jobIds: string[]) {
     const { renderQueue } = await this.initialize();
-    const statuses: Array<{ jobId: string; status: string; progress?: number; videoUrl?: string }> = [];
+    type JobStatus = 'queued' | 'in-progress' | 'completed' | 'failed';
+    const statuses: Array<{ jobId: string; status: JobStatus; progress?: number; videoUrl?: string }> = [];
 
     for (const jobId of jobIds) {
-      const job = renderQueue.jobs.get(jobId) as any;
-      if (job) {
-        const videoUrl = (job as any).videoUrl;
-        const progress = (job as any).progress ?? 0;
-        statuses.push({ jobId, status: (job as any).status, progress, videoUrl });
+      const job = renderQueue.jobs.get(jobId);
+      if (!job) continue;
+      const status = job.status as JobStatus;
+      if (status === 'completed') {
+        statuses.push({ jobId, status, videoUrl: (job as { videoUrl: string }).videoUrl });
+      } else if (status === 'in-progress') {
+        statuses.push({ jobId, status, progress: (job as { progress: number }).progress ?? 0 });
+      } else {
+        statuses.push({ jobId, status });
       }
     }
 
@@ -201,9 +215,9 @@ export class RemotionWorkflow {
     const cancelled: string[] = [];
 
     for (const jobId of jobIds) {
-      const job = renderQueue.jobs.get(jobId) as any;
+      const job = renderQueue.jobs.get(jobId);
       if (job && (job.status === 'queued' || job.status === 'in-progress')) {
-        job.cancel();
+        (job as { cancel: () => void }).cancel();
         cancelled.push(jobId);
       }
     }
