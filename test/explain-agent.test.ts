@@ -31,8 +31,8 @@ function lengthOfLongestSubstring(s) {
     
     return true;
   } catch (error) {
-    console.error('❌ ExplainCodeAgent test failed:', error.message);
-    console.error('Stack:', error.stack);
+    console.error('❌ ExplainCodeAgent test failed:', error instanceof Error ? error.message : String(error));
+    console.error('Stack:', error instanceof Error ? error.stack : 'No stack trace available');
     return false;
   }
 }
