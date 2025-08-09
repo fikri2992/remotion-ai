@@ -80,3 +80,48 @@ export const monitorInputZ = z.object({
   jobIds: z.array(z.string()),
   intervalMs: z.number().int().min(100).max(60000).default(1000),
 });
+
+export const narrationSectionZ = z.object({
+  id: z.string(),
+  title: z.string(),
+  lines: z.array(z.string()),
+});
+
+export const narrationScriptZ = z.object({
+  sections: z.array(narrationSectionZ),
+});
+
+export const visualOverlayZ = z.object({
+  type: z.string(),
+  text: z.string().optional(),
+  data: z.record(z.unknown()).optional(),
+});
+
+export const visualSceneZ = z.object({
+  id: z.string(),
+  duration: z.number(),
+  overlays: z.array(visualOverlayZ).optional(),
+  data: z.record(z.unknown()).optional(),
+});
+
+export const visualSpecZ = z.object({
+  compositionId: z.string(),
+  fps: z.number(),
+  scenes: z.array(visualSceneZ),
+});
+
+// ExplainCodeAgent input/output schemas
+export const explainInputZ = z.object({
+  problemText: z.string().optional(),
+  codeSnippet: z.string().optional(),
+  language: z.string().optional(),
+  examples: z.array(z.string()).optional(),
+  targetCompositionId: z.string().optional(),
+});
+
+export const explainOutputZ = z.object({
+  narration: narrationScriptZ,
+  visualSpec: visualSpecZ,
+  recommendedComposition: z.string(),
+  renderProps: z.record(z.unknown()),
+});
