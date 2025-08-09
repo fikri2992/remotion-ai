@@ -19,7 +19,7 @@ export interface LLMProvider {
 }
 
 export class OpenAIProvider implements LLMProvider {
-  private client: any;
+  private client: unknown = null;
   private model: string;
 
   constructor(options: {
@@ -53,13 +53,16 @@ Classify into one of: Sliding Window, Two Pointers, Dynamic Programming, Graph B
 
 Respond with JSON: {"pattern": "...", "confidence": 0.0-1.0, "rationale": "..."}`;
 
-    const response = await this.client.chat.completions.create({
+    const response = await (this.client as { chat: { completions: { create: (params: unknown) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } }).chat.completions.create({
       model: this.model,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.1,
     });
 
     const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error('OpenAI response content is null');
+    }
     const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     return JSON.parse(cleanedContent);
   }
@@ -91,13 +94,16 @@ Each section should have 2-4 short, clear lines.
 
 Respond with JSON: {"sections": [{"id": "intro", "title": "Problem", "lines": ["..."]}]}`;
 
-    const response = await this.client.chat.completions.create({
+    const response = await (this.client as { chat: { completions: { create: (params: unknown) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } }).chat.completions.create({
       model: this.model,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.3,
     });
 
     const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error('OpenAI response content is null');
+    }
     const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     return JSON.parse(cleanedContent);
   }

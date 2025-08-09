@@ -65,7 +65,7 @@ export class ExplainCodeAgent {
 
     const result = await this.validateAndRepair({
       narration: narrationData,
-      visualSpec: visualSpec as any,
+      visualSpec: visualSpec,
       renderProps,
       fps: this.options.fps || 60,
     });

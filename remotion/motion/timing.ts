@@ -4,12 +4,8 @@ export const secondsToFramesStatic = (s: number, fps = 30) => Math.round(s * fps
 export const framesToSecondsStatic = (f: number, fps = 30) => f / fps;
 
 export const useFps = () => {
-  try {
-    const { fps } = useVideoConfig();
-    return fps ?? 30;
-  } catch {
-    return 30;
-  }
+  const { fps } = useVideoConfig();
+  return fps ?? 30;
 };
 
 export const secondsToFrames = (s: number, fps?: number) => {

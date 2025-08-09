@@ -14,7 +14,9 @@ function setupApp({ remotionBundleUrl }: { remotionBundleUrl: string }) {
   // Ensure renders directory exists
   try {
     fs.mkdirSync(rendersDir, { recursive: true });
-  } catch {}
+  } catch {
+    // Directory may already exist, ignore error
+  }
 
   const queue = makeRenderQueue({
     port: Number(PORT),
