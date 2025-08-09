@@ -9,7 +9,7 @@ export interface HashMapVizProps {
   style?: React.CSSProperties;
 }
 
-export const HashMapViz: React.FC<HashMapVizProps> = ({ present, emphasisKey, mode, style }) => {
+export const HashMapViz: React.FC<HashMapVizProps> = ({ present, emphasisKey, style }) => {
   return (
     <div
       style={{

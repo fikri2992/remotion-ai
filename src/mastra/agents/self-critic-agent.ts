@@ -58,7 +58,7 @@ export class SelfCriticAgent {
 
     // Simple checks
     if (renderProps && typeof renderProps === 'object') {
-      const { title, intro } = renderProps as any;
+      const { title, intro } = renderProps as { title?: unknown; intro?: unknown };
       if (!title || String(title).trim().length < 3) {
         issues.push({ severity: 'warn', message: 'Title is missing or too short', path: 'renderProps.title' });
       }
@@ -68,16 +68,16 @@ export class SelfCriticAgent {
     }
 
     // Light-touch usage of inputs for lint hygiene and basic sanity checks
-    if (Array.isArray((voiceTracks as any)) && (voiceTracks as any).length === 0) {
+    if (Array.isArray(voiceTracks) && voiceTracks.length === 0) {
       issues.push({ severity: 'info', message: 'No voice tracks provided; TTS step may be skipped.', path: 'voiceTracks' });
     }
     if (narration && typeof narration === 'object') {
       // placeholder touch to reference narration
-      void Object.keys(narration as any).length;
+      void Object.keys(narration as Record<string, unknown>).length;
     }
     if (visualSpec && typeof visualSpec === 'object') {
       // placeholder touch to reference visualSpec
-      void Object.keys(visualSpec as any).length;
+      void Object.keys(visualSpec as Record<string, unknown>).length;
     }
 
     // Create a minimal audit payload using docs citations if provided

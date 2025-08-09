@@ -18,7 +18,7 @@ export interface DocsProvider {
 }
 
 export class NoopDocsProvider implements DocsProvider {
-  async fetchDocsContext(topics: string[], limit = 3): Promise<DocsContext> {
+  async fetchDocsContext(topics: string[]): Promise<DocsContext> {
     return { topics, snippets: [], fetchedAt: new Date().toISOString() };
   }
 }
@@ -43,7 +43,7 @@ export class MastraMcpDocsProvider implements DocsProvider {
       try {
         const ctx = await this.options.fetcher(topics, max);
         return ctx;
-      } catch (e) {
+      } catch {
         // fall back to empty on fetch error
       }
     }
@@ -62,14 +62,16 @@ export class MastraMcpDocsProvider implements DocsProvider {
           voice: 'voice/index.mdx',
         };
         const allowedPaths = new Set<string>(topics.map(t => tMap[t] || t));
-        const filtered = (parsed as any).snippets.filter((s: DocsSnippet) => allowedPaths.size === 0 || allowedPaths.has(s.path));
+        const filtered = parsed.snippets.filter((s: DocsSnippet) => allowedPaths.size === 0 || allowedPaths.has(s.path));
         return {
           topics,
           snippets: filtered.slice(0, Math.max(0, max)),
           fetchedAt: new Date().toISOString(),
         };
       }
-    } catch {}
+    } catch {
+      // Failed to read cache file, continue with empty context
+    }
     return {
       topics,
       snippets: [],
