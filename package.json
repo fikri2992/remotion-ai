@@ -6,18 +6,19 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
+    "@mastra/core": "latest",
+    "@mastra/mcp": "latest",
+    "@modelcontextprotocol/sdk": "^1.13.0",
     "@remotion/bundler": "4.0.332",
     "@remotion/cli": "4.0.332",
     "@remotion/renderer": "4.0.332",
     "@remotion/zod-types": "4.0.332",
-    "@mastra/core": "latest",
-    "@mastra/mcp": "latest",
-    "@modelcontextprotocol/sdk": "^1.13.0",
-    "zod": "^3.25.67",
-    "zod-to-json-schema": "^3.24.5",
+    "openai": "^5.12.2",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "remotion": "4.0.332"
+    "remotion": "4.0.332",
+    "zod": "^3.25.67",
+    "zod-to-json-schema": "^3.24.5"
   },
   "devDependencies": {
     "@remotion/eslint-config-flat": "4.0.332",
